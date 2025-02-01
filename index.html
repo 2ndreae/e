@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Chat Room</title>
+  <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+  <h1>Chat Room</h1>
+  <div>
+    <input id="roomName" type="text" placeholder="방 이름"/>
+    <input id="userName" type="text" placeholder="유저 이름"/>
+    <button onclick="joinRoom()">Join Room</button>
+  </div>
+  <div id="rooms"></div>
+  <div id="roomUsers"></div>
+  <div>
+    <input id="message" type="text" placeholder="메시지" onkeypress="handleKeyPress(event)"/>
+    <button onclick="sendMessage()">Send</button>
+  </div>
+  <div id="messages"></div>
+
+  <script>
+    const socket = io();  // 서버와 클라이언트 간의 웹소켓 연결 생성
+
+    socket.on('roomUsers', (users) => {
+      document.getElementById('roomUsers').innerHTML = `유저 리스트: ${users.join(', ')}`;
+    });
+
+    socket.on('roomList', (rooms) => {
+      document.getElementById('rooms').innerHTML = `방 리스트: ${rooms.join(', ')}`;
+    });
+
+    socket.on('receiveMessage', (message) => {
+      const messagesDiv = document.getElementById('messages');
+      const messageElement = document.createElement('div');
+      messageElement.textContent = message;
+      messagesDiv.appendChild(messageElement);
+    });
+
+    function joinRoom() {
+      const roomName = document.getElementById('roomName').value;
+      const userName = document.getElementById('userName').value;
+
+      socket.emit('joinRoom', roomName, userName);
+      socket.emit('requestRoomList');  // 방 리스트 요청
+    }
+
+    function sendMessage() {
+      const roomName = document.getElementById('roomName').value;
+      const userName = document.getElementById('userName').value;
+      const message = document.getElementById('message').value;
+
+      socket.emit('sendMessage', roomName, userName, message);
+      document.getElementById('message').value = '';  // 메시지 입력 필드 초기화
+    }
+
+    function handleKeyPress(event) {
+      if (event.key === 'Enter') {
+        sendMessage();  // 엔터키를 눌렀을 때 sendMessage 함수 호출
+      }
+    }
+
+    function fetchRooms() {
+      fetch('/rooms')
+        .then(response => response.json())
+        .then(rooms => {
+          document.getElementById('rooms').innerHTML = `방 리스트: ${rooms.join(', ')}`;
+        });
+    }
+
+    // 방 리스트를 처음 로드할 때 요청
+    socket.emit('requestRoomList');
+  </script>
+</body>
+</html>
