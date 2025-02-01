@@ -64,6 +64,6 @@ io.on('connection', (socket) => {
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));}); // `public` 폴더를 정적 파일 제공 폴더로 설정
 
-server.listen(3000, () => {
-  console.log('서버가 3000번 포트에서 실행 중입니다.');
+server.listen(8000, () => {
+  console.log('서버가 8000번 포트에서 실행 중입니다.');
 });
