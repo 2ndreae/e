@@ -1,52 +1,69 @@
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
+const path = require('path');
+
 const app = express();
 const server = http.createServer(app);
 const io = socketIo(server);
 
-let rooms = {}; // 방 리스트
-let users = {}; // 유저 리스트
+const rooms = {};  // 방 정보를 저장하는 객체
 
 io.on('connection', (socket) => {
-    socket.on('joinRoom', ({ username, room }) => {
-        if (!rooms[room]) {
-            rooms[room] = [];
-        }
+  console.log('새로운 유저가 연결되었습니다.');
 
-        socket.join(room);
-        rooms[room].push(username);
-        users[socket.id] = { username, room };
+  socket.on('joinRoom', (roomName, userName) => {
+    socket.join(roomName);
 
-        io.to(room).emit('roomUsers', rooms[room]);
-        io.emit('rooms', Object.keys(rooms));
+    if (!rooms[roomName]) {
+      rooms[roomName] = [];
+    }
+    rooms[roomName].push({ id: socket.id, userName });
 
-        socket.on('chatMessage', (message) => {
-            io.to(room).emit('message', { username, message });
-        });
+    io.to(roomName).emit('roomUsers', rooms[roomName].map(user => user.userName));
+    socket.emit('roomList', Object.keys(rooms));  // 방 리스트 요청한 클라이언트에게만 전송
+  });
 
-        socket.on('disconnect', () => {
-            if (users[socket.id]) {
-                const { username, room } = users[socket.id];
-                rooms[room] = rooms[room].filter(user => user !== username);
+  socket.on('leaveRoom', (roomName, userName) => {
+    socket.leave(roomName);
 
-                if (rooms[room].length === 0) {
-                    delete rooms[room];
-                } else {
-                    io.to(room).emit('roomUsers', rooms[room]);
-                }
+    if (rooms[roomName]) {
+      rooms[roomName] = rooms[roomName].filter(user => user.userName !== userName);
+      io.to(roomName).emit('roomUsers', rooms[roomName].map(user => user.userName));
+      if (rooms[roomName].length === 0) {
+        delete rooms[roomName];  // 방에 유저가 없으면 삭제
+      }
+      socket.emit('roomList', Object.keys(rooms));  // 방 리스트 요청한 클라이언트에게만 전송
+    }
+  });
 
-                delete users[socket.id];
-                io.emit('rooms', Object.keys(rooms));
-            }
-        });
-    });
+  socket.on('disconnect', () => {
+    console.log('유저가 연결을 해제했습니다.');
+
+    for (const roomName in rooms) {
+      rooms[roomName] = rooms[roomName].filter(user => user.id !== socket.id);
+      io.to(roomName).emit('roomUsers', rooms[roomName].map(user => user.userName));
+      if (rooms[roomName].length === 0) {
+        delete rooms[roomName];  // 방에 유저가 없으면 삭제
+      }
+    }
+
+    socket.emit('roomList', Object.keys(rooms));  // 방 리스트 요청한 클라이언트에게만 전송
+  });
+
+  socket.on('requestRoomList', () => {
+    socket.emit('roomList', Object.keys(rooms));
+  });
+
+  socket.on('sendMessage', (roomName, userName, message) => {
+    const formattedMessage = `${userName}: ${message}`;
+    io.to(roomName).emit('receiveMessage', formattedMessage);  // 방에 있는 모든 클라이언트에게 메시지 전송
+  });
 });
 
 app.get('/', (req, res) => {
-    res.sendFile(__dirname + '/index.html');
-});
+  res.sendFile(path.join(__dirname, 'index.html'));}); // `public` 폴더를 정적 파일 제공 폴더로 설정
 
-server.listen(8000, () => {
-    console.log('Server is running on port 8000');
+server.listen(3000, () => {
+  console.log('서버가 3000번 포트에서 실행 중입니다.');
 });
